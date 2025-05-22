@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+	"ws-loadtest/metrics"
+	// ... 기타 필요 패키지 ...
 )
 func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-chan struct{}, wg *sync.WaitGroup) {
     defer wg.Done()
@@ -41,6 +43,16 @@ func handleMsg(body string, clientNum int) {
     if err := json.Unmarshal([]byte(body), &resp); err != nil {
         log.Printf("메시지 Unmarshal 오류: %v", err)
         return
+    }
+    metrics.Default.Delivery.AddRecv(clientNum, resp.ClientMessageId)
+    // 2. 레이턴시 계산 (현재 수신 시각 - clientSentAt)
+    if resp.ClientSentAt > 0 {
+        sentTime := time.Unix(0, resp.ClientSentAt) // UnixNano 기준
+        receivedTime := time.Now()
+        latency := receivedTime.Sub(sentTime)
+
+        // 3. 중앙 지표 저장
+        metrics.Default.Latency.Add(latency)
     }
     // log.Println(body)
 }

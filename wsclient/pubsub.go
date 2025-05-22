@@ -10,6 +10,7 @@ import (
 	"github.com/go-stomp/stomp"
 	"github.com/google/uuid"
 
+	"ws-loadtest/metrics"
 )
 
 // Subscribe : 메시지 구독 함수 (비동기로 수신 콜백)
@@ -28,12 +29,14 @@ func Subscribe(conn *stomp.Conn, roomID int, clientNum int, handleMsg func(strin
             case msg, ok := <-sub.C:
                 if !ok {
                     log.Println("[클라이언트", clientNum, "] sub.C 채널 예기치 않게 닫힘 → 비정상 종료")
+                    metrics.Default.Stability.IncDisconnect()
                     return
                 }
                 if msg.Err != nil {
                     log.Printf("메시지 수신 오류: %v", msg.Err)
                     continue
                 }
+                metrics.Default.Message.IncRecv() // 받은 메세지 지표 수집
                 handleMsg(string(msg.Body), clientNum)
             }
         }
@@ -48,6 +51,7 @@ func Publish(conn *stomp.Conn, req MessageRequest) error {
     if err != nil {
         return err
     }
+    metrics.Default.Message.IncSent() // 보낸 메세지 지표 수집
     return conn.Send(
         "/pub/message",
         "application/json",
@@ -64,6 +68,7 @@ func PublishLoopWithID(conn *stomp.Conn, roomID int, count int, clientNum int) {
             MessageId: messageId,         
             SentAt: time.Now().UnixNano(),
         }
+        metrics.Default.Delivery.AddSent(messageId)
         
         err := Publish(conn, req)
         if err != nil {
