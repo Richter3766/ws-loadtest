@@ -14,7 +14,7 @@ import (
 )
 
 // Subscribe : 메시지 구독 함수 (비동기로 수신 콜백)
-func Subscribe(conn *stomp.Conn, roomID int, clientNum int, handleMsg func(string, int), done <-chan struct{}, subWg *sync.WaitGroup) (error) {
+func Subscribe(conn *stomp.Conn, roomID int, clientNum int, done <-chan struct{}, subWg *sync.WaitGroup, receivedSet *SafeSet) (error) {
     sub, err := conn.Subscribe(fmt.Sprintf("/sub/room/%d", roomID), stomp.AckAuto)
     if err != nil {
         return err
@@ -37,13 +37,56 @@ func Subscribe(conn *stomp.Conn, roomID int, clientNum int, handleMsg func(strin
                     continue
                 }
                 metrics.Default.Message.IncRecv() // 받은 메세지 지표 수집
-                handleMsg(string(msg.Body), clientNum)
+                messageId, roomId  := handleMsg(string(msg.Body), clientNum, receivedSet)
+                if messageId != -1 {
+                    sendAck(conn, messageId, roomId)
+                }
             }
         }
     }()
     return nil
 }
 
+func SubscribeNotify(conn *stomp.Conn, clientNum int, done <-chan struct{}, subWg *sync.WaitGroup, receivedSet *SafeSet) error {
+    sub, err := conn.Subscribe("/user/queue/notify", stomp.AckAuto)
+    if err != nil {
+        return err
+    }
+    go func() {
+        defer subWg.Done()
+        for {
+            select {
+            case <-done:
+                log.Printf("[클라이언트 %d] notify 구독 루프 종료", clientNum)
+                return
+            case msg, ok := <-sub.C:
+                if !ok {
+                    log.Printf("[클라이언트 %d] notify 채널 예기치 않게 닫힘", clientNum)
+                    return
+                }
+                // 누락 메시지 처리
+                metrics.Default.Message.IncRecv()
+                messageId, roomId := handleMsg(string(msg.Body), clientNum, receivedSet)
+                // log.Printf("클라이언트 %d: ack 전송", clientNum)
+                if messageId != -1 {
+                    log.Printf("클라이언트 %d: ack 전송", clientNum)
+                    sendAck(conn, messageId, roomId)
+                }
+            }
+        }
+    }()
+    return nil
+}
+
+
+func sendAck(conn *stomp.Conn, messageId int64, roomId int64) {
+    // 서버에서 정의한 /pub/ack, 메시지 포맷에 맞춰 전송
+    payload := fmt.Sprintf(`{"messageId":"%d", "roomId":"%d"}`, messageId, roomId)
+    err := conn.Send("/pub/ack", "application/json", []byte(payload))
+    if err != nil {
+        log.Printf("ACK 전송 실패: %v", err)
+    }
+}
 
 // Publish : 메시지 발행 함수
 func Publish(conn *stomp.Conn, req MessageRequest) error {

@@ -13,7 +13,7 @@ import (
 const (
     wsURL      = "ws://localhost:8080/api/ws/websocket"
     roomID     = 1
-    numClients = 100 // 동시 접속자 수
+    numClients = 300 // 동시 접속자 수
     numRepeats = 1 // 반복 수
 )
 
@@ -44,7 +44,8 @@ func main() {
         }
 
         // 회차별 부하테스트: 일정 시간 대기 후 종료 신호
-        time.Sleep(5 * time.Second) // 각 회차 실행 시간 (필요시 조정)
+        time.Sleep(60 * time.Second)
+
         close(stopAll)
         log.Println("종료 신호 감지: 모든 클라이언트 종료 대기")
         wg.Wait()
@@ -55,7 +56,7 @@ func main() {
         log.Printf("==== %d번째 테스트 종료, 결과 저장: %s ====", round, fname)
 
         // 충분한 대기시간(자원 해제) 후 다음 라운드(필요시)
-        time.Sleep(3 * time.Second)
+        time.Sleep(10 * time.Second)
     }
     log.Println("모든 부하 테스트 완료")
 }

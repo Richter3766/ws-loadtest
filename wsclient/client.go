@@ -16,16 +16,25 @@ func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-ch
         log.Printf("[클라이언트 %d] 연결 실패: %v", clientNum, err)
         return
     }
-
+    receivedSet := NewSafeSet()
+    
     done := make(chan struct{})
     var subWg sync.WaitGroup
     subWg.Add(1)
-    err = Subscribe(conn, roomID, clientNum, handleMsg, done, &subWg)
+    // 특정 방 구독
+    err = Subscribe(conn, roomID, clientNum, done, &subWg, receivedSet)
     if err != nil {
         log.Printf("[클라이언트 %d] 구독 실패: %v", clientNum, err)
         return
     }
-
+    // 누락 메시지 채널도 추가로 구독
+    subWg.Add(1)
+    err = SubscribeNotify(conn, clientNum, done, &subWg, receivedSet)
+    if err != nil {
+        log.Printf("[클라이언트 %d] notify 구독 실패: %v", clientNum, err)
+        return
+    }
+    time.Sleep(10 * time.Second)
     go PublishLoopWithID(conn, roomID, 1, clientNum)
 
     <-stopAll
@@ -36,14 +45,18 @@ func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-ch
     log.Printf("[클라이언트 %d] 종료", clientNum)
 }
 
-// TODO: 각 클라별로 집계 데이터 쌓아 통계적 분석 해보기
-func handleMsg(body string, clientNum int) {
+func handleMsg(body string, clientNum int, receivedSet *SafeSet) (int64, int64) {
     // 1. 응답 메시지 파싱
     var resp MessageResponseDto
     if err := json.Unmarshal([]byte(body), &resp); err != nil {
         log.Printf("메시지 Unmarshal 오류: %v", err)
-        return
+        return -1, -1
     }
+    msgid := resp.MessageId
+    if receivedSet.Add(msgid) {
+        return -1, -1
+    }
+
     metrics.Default.Delivery.AddRecv(clientNum, resp.ClientMessageId)
     // 2. 레이턴시 계산 (현재 수신 시각 - clientSentAt)
     if resp.ClientSentAt > 0 {
@@ -55,4 +68,5 @@ func handleMsg(body string, clientNum int) {
         metrics.Default.Latency.Add(latency)
     }
     // log.Println(body)
+    return resp.MessageId, resp.RoomId
 }
