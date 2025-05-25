@@ -36,13 +36,18 @@ func main() {
         // 지표 리셋
         metrics.ResetAll()
 
+        var readyWg sync.WaitGroup
+        readyWg.Add(numClients)
+        start := make(chan struct{})
+
         // 클라이언트 고루틴 기동
         for i := 1; i <= numClients; i++ {
             wg.Add(1)
             jwt := users[i-1].JWT
-            go wsclient.RunClient(i, wsURL, roomID, jwt, stopAll, &wg)
+            go wsclient.RunClient(i, wsURL, roomID, jwt, stopAll, &wg,  &readyWg, start)
         }
-
+        readyWg.Wait()
+        close(start)
         // 회차별 부하테스트: 일정 시간 대기 후 종료 신호
         time.Sleep(60 * time.Second)
 

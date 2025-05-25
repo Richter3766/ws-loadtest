@@ -8,12 +8,14 @@ import (
 	"ws-loadtest/metrics"
 	// ... 기타 필요 패키지 ...
 )
-func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-chan struct{}, wg *sync.WaitGroup) {
+func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-chan struct{}, 
+    wg *sync.WaitGroup, readyWg  *sync.WaitGroup, start <-chan struct{}) {
     defer wg.Done()
 
     conn, wsnet, err := ConnectWSSTOMP(wsURL, jwt)
     if err != nil {
         log.Printf("[클라이언트 %d] 연결 실패: %v", clientNum, err)
+        readyWg.Done()
         return
     }
     receivedSet := NewSafeSet()
@@ -25,6 +27,7 @@ func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-ch
     err = Subscribe(conn, roomID, clientNum, done, &subWg, receivedSet)
     if err != nil {
         log.Printf("[클라이언트 %d] 구독 실패: %v", clientNum, err)
+        readyWg.Done()
         return
     }
     // 누락 메시지 채널도 추가로 구독
@@ -32,9 +35,11 @@ func RunClient(clientNum int, wsURL string, roomID int, jwt string, stopAll <-ch
     err = SubscribeNotify(conn, clientNum, done, &subWg, receivedSet)
     if err != nil {
         log.Printf("[클라이언트 %d] notify 구독 실패: %v", clientNum, err)
+        readyWg.Done()
         return
     }
-    time.Sleep(10 * time.Second)
+    readyWg.Done()
+    <-start // 다른 고루틴이 모두 준비되면 시작
     go PublishLoopWithID(conn, roomID, 1, clientNum)
 
     <-stopAll

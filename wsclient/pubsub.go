@@ -36,10 +36,11 @@ func Subscribe(conn *stomp.Conn, roomID int, clientNum int, done <-chan struct{}
                     log.Printf("메시지 수신 오류: %v", msg.Err)
                     continue
                 }
-                metrics.Default.Message.IncRecv() // 받은 메세지 지표 수집
+            
                 messageId, roomId  := handleMsg(string(msg.Body), clientNum, receivedSet)
                 if messageId != -1 {
                     sendAck(conn, messageId, roomId)
+                    metrics.Default.Message.IncRecv() // 받은 메세지 지표 수집
                 }
             }
         }
@@ -65,12 +66,11 @@ func SubscribeNotify(conn *stomp.Conn, clientNum int, done <-chan struct{}, subW
                     return
                 }
                 // 누락 메시지 처리
-                metrics.Default.Message.IncRecv()
+                
                 messageId, roomId := handleMsg(string(msg.Body), clientNum, receivedSet)
-                // log.Printf("클라이언트 %d: ack 전송", clientNum)
                 if messageId != -1 {
-                    log.Printf("클라이언트 %d: ack 전송", clientNum)
                     sendAck(conn, messageId, roomId)
+                    metrics.Default.Message.IncRecv()
                 }
             }
         }
