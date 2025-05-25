@@ -41,13 +41,13 @@
 │    ├─ deliveryStats.go
 │    └─ metrics.go
 └─ wsclient/              # 웹소켓 클라이언트/연결/유저 관리 로직
-        ├─ client.go
-        ├─ conn.go
-        ├─ pubsub.go
-        ├─ safeSet.go
-        ├─ users.go
-        ├─ types.go
-        └─ wsnetconn.go
+    ├─ client.go
+    ├─ conn.go
+    ├─ pubsub.go
+    ├─ safeSet.go
+    ├─ users.go
+    ├─ types.go
+    └─ wsnetconn.go
         
 
 ```
@@ -57,9 +57,9 @@
 ## 활용 예시
 
 - **백엔드 서버(웹소켓/STOMP) 최대 동시 접속 한계, 메시지 처리량, 손실률 등 실측**
-- **Spring Boot, Node.js, Python 등 다양한 백엔드와 통합 부하테스트**
-- **Redis/Kafka 등 Pub/Sub 구조 개선 전후 품질지표 정량 비교**
-- **Prometheus/Grafana 대시보드, 분석 리포트 등과 연계 가능**
+- **Spring Boot와 같은 백엔드와 부하테스트**
+- **Redis 등 Pub/Sub 구조 개선 전후 품질지표 정량 비교**
+
 
 ---
 
